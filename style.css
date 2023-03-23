@@ -75,7 +75,7 @@ body {
     box-shadow: none;
     width: 800px;
     min-height: 100px;
-    padding: 12px;
+    padding: 20px;
     outline: solid 4px transparent;
     transition: all 0.08s;
 }
