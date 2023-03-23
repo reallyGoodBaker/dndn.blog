@@ -50,6 +50,7 @@ body {
 }
 
 .nav > .btn {
+    box-sizing: border-box;
     padding: 0 32px;
     height: 56px;
     display: flex;
@@ -61,13 +62,31 @@ body {
     user-select: none;
 }
 
-.nav > .btn:hover, .nav > .btn.selected {
+.nav > .btn:hover {
     background-color: #38e0ff;
     color: #000;
 }
 
+.nav > .btn.selected {
+    border-top: solid 4px #e4458d;
+    background-color: #fefc51;
+    color: #000;
+}
+
 .nav > .btn:active {
-    background-color: rgb(222, 255, 255);
+    background-color: #dbfaff;
+}
+
+.nav > .btn.selected:active {
+    background-color: #fffec4;
+}
+
+.nav > .avatar {
+    background: center / cover no-repeat url(./asset/kirakira_avatar.png), #fefc51;
+    box-shadow: 4px 4px 0 #38e0ff;
+    width: 88px;
+    height: 88px;
+    z-index: 999;
 }
 
 .content {
@@ -153,12 +172,6 @@ body {
 .txt_btn:active {
     filter: brightness(0.84);
     box-shadow: 0 0 0 #000;
-}
-
-.nav > .avatar {
-    background: center / cover no-repeat url(./asset/kirakira_avatar.png);
-    width: 88px;
-    height: 88px;
 }
 
 .container {
