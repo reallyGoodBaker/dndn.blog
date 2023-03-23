@@ -76,11 +76,12 @@ body {
     width: 800px;
     min-height: 100px;
     padding: 12px;
-    border: solid 4px transparent;
+    outline: solid 4px transparent;
+    transition: all 0.08s;
 }
 
 .content:hover {
-    border-color: #fefc51;
+    outline-color: #fefc51;
     box-shadow: 10px 12px 0 #bbb800;
 }
 
