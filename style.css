@@ -183,7 +183,7 @@ body {
 }
 
 .cg {
-    filter: drop-shadow(0 0 0 #fefc51);
+    filter: drop-shadow(0 0 0 #38e0ff);
     pointer-events: none;
     user-select: none;
     scale: 2;
@@ -192,5 +192,5 @@ body {
 }
 
 .content:hover .cg {
-    filter: drop-shadow(-24px 0 0 #fefc51);
+    filter: drop-shadow(-24px 0 0 #38e0ff);
 }
