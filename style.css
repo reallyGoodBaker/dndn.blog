@@ -183,7 +183,11 @@ body {
 }
 
 .cg {
-    filter: drop-shadow(0 0 0 #38e0ff);
+    --dx: 0;
+    --dy: 0;
+    --blur: 0;
+    --color: #38e0ff;
+    filter: drop-shadow(var(--dx) var(--dy) var(--blur) var(--color));
     pointer-events: none;
     user-select: none;
     scale: 2;
@@ -192,5 +196,5 @@ body {
 }
 
 .content:hover .cg {
-    filter: drop-shadow(-24px 0 0 #38e0ff);
+    --dx: -24px;
 }
