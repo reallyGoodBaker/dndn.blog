@@ -71,20 +71,17 @@ body {
 }
 
 .content {
-    /* box-sizing: border-box; */
     background-color: #444;
-    box-shadow: 0 0 0 #fefc51;
+    box-shadow: none;
     width: 800px;
     min-height: 100px;
     padding: 12px;
     border: solid 4px transparent;
-    transition: all 0.04s;
 }
 
 .content:hover {
     border-color: #fefc51;
-    transform: translateY(-8px);
-    box-shadow: 10px 16px 0 #f1ec00;
+    box-shadow: 10px 12px 0 #bbb800;
 }
 
 .header > .avatar {
