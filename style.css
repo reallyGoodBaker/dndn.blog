@@ -1,0 +1,185 @@
+body {
+    --main-light: #e445ba;
+    --main-dark: #d943b1;
+    margin: 0;
+    padding: 0;
+    background-image: linear-gradient(
+        45deg,
+        var(--main-light) 0,
+        var(--main-light) 25%,
+        var(--main-dark) 25%,
+        var(--main-dark) 50%,
+        var(--main-light) 50%,
+        var(--main-light) 75%,
+        var(--main-dark) 75%,
+        var(--main-dark) 100%
+    );
+    background-size: 80px 80px;
+    height: 100vh;
+    overflow: auto;
+    display: block;
+    animation: 1s linear move infinite;
+}
+
+@keyframes move {
+    0% {
+        background-position: 0 0;
+    }
+
+    0% {
+        background-position: 0 80px;
+    }
+}
+
+.nav {
+    display: flex;
+    box-sizing: border-box;
+    position: fixed;
+    justify-content: center;
+    align-items: center;
+    top: 0;
+    padding: 24px;
+    width: 100vw;
+    z-index: 999;
+    pointer-events: none;
+    background-image: linear-gradient(180deg, #222 0, transparent 100%);
+}
+
+.nav * {
+    pointer-events: all;
+}
+
+.nav > .btn {
+    padding: 0 32px;
+    height: 56px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-color: rgb(246, 23, 246);
+    color: #fff;
+    font-weight: bold;
+    user-select: none;
+}
+
+.nav > .btn:hover, .nav > .btn.selected {
+    background-color: #38e0ff;
+    color: #000;
+}
+
+.nav > .btn:active {
+    background-color: rgb(222, 255, 255);
+}
+
+.content {
+    /* box-sizing: border-box; */
+    background-color: #444;
+    box-shadow: 0 0 0 #fefc51;
+    width: 800px;
+    min-height: 100px;
+    padding: 12px;
+    border: solid 4px transparent;
+    transition: all 0.04s;
+}
+
+.content:hover {
+    border-color: #fefc51;
+    transform: translateY(-8px);
+    box-shadow: 10px 16px 0 #f1ec00;
+}
+
+.header > .avatar {
+    --src: url(./asset/alyce.png);
+    background-image: var(--src);
+    background-size: cover;
+    background-position: center;
+    background-color: rgb(255, 235, 120);
+    border-radius: 50%;
+    height: 56px;
+    width: 56px;
+    transition: all 0.1s;
+}
+
+.header {
+    display: flex;
+    align-items: last baseline;
+    gap: 16px;
+    color: #fff;
+}
+
+.title {
+    display: flex;
+    flex-direction: column;
+    font-size: xx-large;
+    font-weight: 700;
+}
+
+.subtitle {
+    font-size: xx-small;
+    color: #ddd;
+}
+
+.article {
+    margin: 16px;
+    margin-left: 72px;
+    width: calc(100% - 88px);
+    color: #eee;
+}
+
+.footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.btn_group {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+}
+
+.txt_btn {
+    box-sizing: border-box;
+    border: solid 3px transparent;
+    user-select: none;
+    color: #38e0ff;
+    padding: 8px 16px;
+}
+
+.txt_btn:hover {
+    background-color: #38e0ff;
+    color: black;
+    border: solid 3px #000;
+    box-shadow: 3px 3px 0 #000;
+}
+
+.txt_btn:active {
+    filter: brightness(0.84);
+    box-shadow: 0 0 0 #000;
+}
+
+.nav > .avatar {
+    background: center / cover no-repeat url(./asset/kirakira_avatar.png);
+    width: 88px;
+    height: 88px;
+}
+
+.container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    padding: 200px 0;
+}
+
+.cg {
+    filter: drop-shadow(0 0 0 #fff);
+    pointer-events: none;
+    user-select: none;
+    scale: 2;
+    transform: translateY(24px);
+    transition: all 0.1s;
+}
+
+.content:hover .cg {
+    filter: drop-shadow(-24px 0 0 #fff);
+}
