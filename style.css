@@ -191,8 +191,10 @@ body {
     pointer-events: none;
     user-select: none;
     scale: 2;
-    transform: translateY(24px);
-    transition: all 0.1s;
+}
+
+.cg > .image {
+    transform: translate(calc(var(--dx) / -2), calc(var(--dy) / -2));
 }
 
 .content:hover .cg {

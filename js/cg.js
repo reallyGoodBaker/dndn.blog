@@ -20,7 +20,6 @@ export function bindAllCGs() {
  * @returns 
  */
 function bindPointerEvents(el, context) {
-    // console.log(el, context)
     if (el.tracker) {
         return
     }
@@ -31,10 +30,12 @@ function bindPointerEvents(el, context) {
     let task = null
 
     context.addEventListener('pointerenter', () => {
+        el.style.transition = 'none'
         isTracking = true
     })
 
     context.addEventListener('pointerleave', () => {
+        el.style.transition = 'all 0.1s'
         el.style.setProperty('--dx', 0)
         el.style.setProperty('--dy', 0)
         isTracking = false
@@ -49,11 +50,18 @@ function bindPointerEvents(el, context) {
             const rect = el.getBoundingClientRect()
             const cx = rect.x + rect.width / 2
                 ,cy = rect.y + rect.height / 2
-            const dx = Math.max(Math.min(cx - ev.screenX, 30), -30)
-                ,dy = Math.max(Math.min(cy - ev.screenY, 30), -30)
-            
-            el.style.setProperty('--dx', dx + 'px')
-            el.style.setProperty('--dy', dy + 'px')
+            let dx = cx - ev.screenX
+                ,dy = cy - ev.screenY
+                ,radius = Math.sqrt(dx ** 2 + dy ** 2)
+
+            if (radius > 160) {
+                const scale = 160 / radius
+                dx *= scale
+                dy *= scale
+            }
+
+            el.style.setProperty('--dx', dx / 8 + 'px')
+            el.style.setProperty('--dy', dy / 8 + 'px')
 
             task = null
         })
