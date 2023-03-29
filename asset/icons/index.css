@@ -1,0 +1,6 @@
+@import url(./symbols.css);
+@import url(./outlined/index.css);
+
+.i {
+    font-family: 'Material Symbols Outlined';
+}
