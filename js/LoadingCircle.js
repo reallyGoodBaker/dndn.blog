@@ -1,4 +1,4 @@
-class LoadingCircle extends HTMLElement {
+export class LoadingCircle extends HTMLElement {
     canvas
     ctx
     min = 60
@@ -227,5 +227,3 @@ class LoadingCircle extends HTMLElement {
     }
     
 }
-
-customElements.define('loading-circle', LoadingCircle)
