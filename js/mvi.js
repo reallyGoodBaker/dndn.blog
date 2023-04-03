@@ -52,8 +52,10 @@ class MvvmElement extends HTMLElement {
     }
 
     connectedCallback() {
-        this._template.callLifecycleCallback('connected', this)
-        this._template._handleAttrs(this.shadowRoot ?? this)
+        const template = this._template
+        template.callLifecycleCallback('connected', this)
+        template._handleAttrs(this.shadowRoot ?? this)
+        template.callLifecycleCallback('initialized', this)
     }
 
     disconnectedCallback() {
@@ -96,7 +98,7 @@ class Accessor {
     /**@private*/ _isReactive = {}
 
     constructor(
-        value,
+        value = null,
         getter = v => v,
         /**@type {AccessorSetter}*/
         setter = (s, v) => s(v)
@@ -147,6 +149,62 @@ export function val(value, getter, setter) {
     return new Accessor(value, getter, setter).buildProxy()
 }
 
+class EventStream extends Array {
+    event(type) {
+        return this.filter(ev => ev.type === type)
+    }
+
+    notEmpty(handler) {
+        if (this.length) {
+            handler.call(null)
+        }
+    }
+}
+
+class DOMDriver {
+
+    /**@private*/ _scheduler = func => {
+        let animFrame
+        let looper = () => {
+            const queue = this._evQueue
+            const arr = queue.splice(0, queue.length)
+
+            if (arr.length) {
+                func.call(
+                    this,
+                    EventStream.from(arr)
+                )
+            }
+
+            animFrame = requestAnimationFrame(looper)
+        }
+    
+        return {
+            start: () => looper(),
+            stop: () => cancelAnimationFrame(animFrame),
+        }
+    }
+
+    /**@private*/ _evQueue = []
+
+    sendData(val) {
+        this._evQueue.push(val)
+    }
+
+    /**
+     * @param {DOMDriverMain} main 
+     */
+    constructor(main) {
+        this._scheduler(main).start()
+    }
+}
+
+/**
+ * @param {DOMDriverMain} main 
+ */
+export function driver(main) {
+    return new DOMDriver(main)
+}
 
 class MvvmTemplate {
     static uid = 0
@@ -155,19 +213,21 @@ class MvvmTemplate {
      * @type {{[P: string]: EventListenerModifier}}
      */
     static eventModifiers = {
-        stopPropagation(t, listener) {
+        stoppropagation(t, listener) {
             return ev => {
                 listener.call(t, ev)
                 ev.stopPropagation()
             }
         },
+
         prevent(t, listener) {
             return ev => {
                 listener.call(t, ev)
                 ev.preventDefault()
             }
         },
-        stopImmediate(t, listener) {
+
+        stopimmediate(t, listener) {
             return ev => {
                 ev.stopImmediatePropagation()
                 listener.call(t, ev)
@@ -223,7 +283,7 @@ class MvvmTemplate {
         }
     }
 
-    /**@private*/ _handleContent(shadowRoot=false) {
+    /**@private*/ _handleContent(shadowRoot = false) {
         let target = this._element
 
         if (shadowRoot) {
@@ -272,7 +332,7 @@ class MvvmTemplate {
      * @param {HTMLElement} target 
      */
     _handleAttrs(target) {
-        for (const attr of target.attributes) {
+        for (const attr of target.attributes ?? []) {
             this._handleAttribute(target, attr)
         }
 
@@ -287,9 +347,28 @@ class MvvmTemplate {
      * @param {Attr} attr 
      */
     _handleAttribute(target, attr) {
-        if (attr.name.startsWith('@')) {
-            const [eventName, ...modifiers] = attr.name.slice(1).split('|')
-            this._bindEvent(target, eventName, this._attrs[attr.value], modifiers)
+        const attrName = attr.name
+        const attrKey = attr.value
+        const attrVal = this._attrs[attrKey]
+
+        //绑定事件
+        if (attrName.startsWith('@')) {
+            const [eventName, ...modifiers] = attrName.slice(1).split('|')
+            this._bindEvent(target, eventName, attrVal, modifiers)
+            return
+        }
+
+        //事件流数据源点
+        if (attrName.startsWith('$')) {
+            const events = attrName.slice(1).split('|')
+            for (const ev of events) {
+                target.addEventListener(ev, e => attrVal.sendData(e))
+            }
+        }
+
+        //将 this="${ele}" 绑定到 ele
+        if (attrName === 'this' && attrVal._isReactive) {
+            attrVal.value = target
             return
         }
     }
@@ -301,12 +380,12 @@ class MvvmTemplate {
      * @param {EventListener} listener 
      * @param {string[]} modifiers 
      */
-    _bindEvent(target, name, listener, modifiers=[]) {
+    _bindEvent(target, name, listener, modifiers = []) {
         let _l = listener
         for (const modifier of modifiers) {
             if (modifier in MvvmTemplate.eventModifiers) {
                 _l = MvvmTemplate.eventModifiers[modifier]
-                    .call(null, target, listener)
+                    .call(null, target, _l)
             }
         }
 
@@ -315,10 +394,11 @@ class MvvmTemplate {
 
     /**
      * @param {Node} target 
-     * @param {import('./types').MountOptions} opt 
+     * @param {MountOptions} opt 
      */
-    mount(target, opt={}) {
+    mount(target, opt = {}) {
         this._handleContent(opt.shadow)
         target.appendChild(this._element)
     }
+
 }
