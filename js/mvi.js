@@ -1,10 +1,66 @@
 /// <reference path="./types.d.ts" />
 
+export async function importTemplate(url, templateVarsMapping={}) {
+    const templateString = await (await fetch(url)).text()
+    const frags = []
+    const args = []
+    const bracketsMatcher = /\{\{(.*)\}\}/g
+
+    let result, lastEnd = 0
+    while (result = bracketsMatcher.exec(templateString)) {
+        const [_, varName] = result
+        const i = result.index
+        
+        frags.push(
+            templateString.slice(lastEnd, i).replaceAll('\\{', '{')
+        )
+
+        lastEnd = i + _.length
+
+        if (varName in templateVarsMapping) {
+            args.push(templateVarsMapping[varName])
+        }
+    }
+
+    frags.push(templateString.slice(lastEnd))
+    
+    return template(frags, ...args)
+}
+
+export function relative(importMeta, url) {
+    const fileUrl = importMeta.url
+    const { pathname } = new URL(fileUrl)
+    const pathArr = pathname.split('/')
+    const urlArr = url.split('/')
+
+    pathArr.pop()
+
+    if (urlArr[0].length === 0) {
+        return url
+    }
+
+    const targetPath = pathArr.slice(0)
+
+    urlArr.forEach(pathName => {
+        if (pathName === '.') {
+            return
+        }
+
+        if (pathName === '..') {
+            return targetPath.pop()
+        }
+
+        targetPath.push(pathName)
+    })
+
+    return targetPath.join('/')
+}
+
 /**
- * @type {(frags: string[], ...args: ant[]) => MvvmTemplate}
+ * @type {(frags: string[], ...args: ant[]) => MviTemplate}
  */
 export const template = (frags, ...args) => {
-    const temp = new MvvmTemplate()
+    const temp = new MviTemplate()
     const result = []
 
     args.forEach((arg, i) => {
@@ -37,7 +93,7 @@ function isAttribute(str) {
 
 
 class MvvmElement extends HTMLElement {
-    /**@private @type {MvvmTemplate}*/ _template = null
+    /**@private @type {MviTemplate}*/ _template = null
 
     constructor(temp) {
         super()
@@ -206,7 +262,7 @@ export function driver(main) {
     return new DOMDriver(main)
 }
 
-class MvvmTemplate {
+class MviTemplate {
     static uid = 0
 
     /**
@@ -233,6 +289,15 @@ class MvvmTemplate {
                 listener.call(t, ev)
             }
         },
+
+        once(t, listener) {
+            let _listener = ev => {
+                t.removeEventListener(ev.type, _listener)
+                listener.call(t, ev)
+            }
+
+            return _listener
+        },
     }
 
     /**@private @type {MvvmElement}*/ _element = new MvvmElement(this)
@@ -252,14 +317,14 @@ class MvvmTemplate {
     }
 
     recordReactiveContent(arg) {
-        const uid = `uid-${MvvmTemplate.uid++}`
+        const uid = `uid-${MviTemplate.uid++}`
         this._contents[uid] = arg
 
         return uid
     }
 
     recordReactiveAttr(arg) {
-        const uid = `uid-${MvvmTemplate.uid++}`
+        const uid = `uid-${MviTemplate.uid++}`
         this._attrs[uid] = arg
 
         return uid
@@ -383,8 +448,8 @@ class MvvmTemplate {
     _bindEvent(target, name, listener, modifiers = []) {
         let _l = listener
         for (const modifier of modifiers) {
-            if (modifier in MvvmTemplate.eventModifiers) {
-                _l = MvvmTemplate.eventModifiers[modifier]
+            if (modifier in MviTemplate.eventModifiers) {
+                _l = MviTemplate.eventModifiers[modifier]
                     .call(null, target, _l)
             }
         }
