@@ -20,6 +20,8 @@ export const template = (frags, ...args) => {
         result.push(lastFrag, uid)
     })
 
+    result.push(...frags.slice(-1))
+
     temp.setTemplateFrags(result)
 
     return temp
@@ -75,10 +77,13 @@ class Accessor {
         '_isReactive', 'value'
     ]
 
+    static editableProps = [
+        'value'
+    ]
+
     static values = new Map()
 
     static addSubmit(accessor, onChange) {
-        console.log(accessor, onChange)
         this.values.set(accessor, onChange)
     }
 
@@ -108,24 +113,26 @@ class Accessor {
                     return null
                 }
 
-                return t.getter(t.value)
+                return t.getter(t[p])
             },
 
             set(t, p, v, r) {
-                if (p !== 'value') {
+                if (!Accessor.editableProps.includes(p)) {
                     return false
                 }
 
                 const onChange = Accessor.getSubmit(r)
                 if (!onChange) {
                     t[p] = v
-                    return
+                    return true
                 }
 
                 t.setter(
                     val => onChange.call(null, val),
                     t[p] = v
                 )
+
+                return true
             }
         })
     }

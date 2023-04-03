@@ -5,24 +5,15 @@ window.addEventListener('load', async () => {
     bindAllCGs()
 })
 
-let greeting = val('Hello World')
-window.greeting = greeting
+let count = val(0)
 
 function onClick() {
-    alert('You clicked h1')
+    count.value++
 }
 
 const temp = template`
-<h1 @click="${onClick}">${greeting}</h1>
+<h1>${count}</h1>
+<div class="txt_btn" @click="${onClick}">增加</div>
 `
-
-temp.setCallbacks({
-    connected() {
-        console.log('???')
-    },
-})
-
-console.log(temp)
-
 
 temp.mount(document.querySelector('#reactive'))
