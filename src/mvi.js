@@ -1,30 +1,33 @@
 /// <reference path="./types.d.ts" />
 
-export async function importTemplate(url, templateVarsMapping={}) {
+/**
+ * @param {string} url 
+ * @param {{tagName: string, opts?: ElementDefinitionOptions}} templateOpt 
+ * @param {{[P: string]: any}} templateVarsMapping 
+ * @returns 
+ */
+export async function importTemplate(url, templateOpt = {}, templateVarsMapping = {}) {
     const templateString = await (await fetch(url)).text()
     const frags = []
     const args = []
-    const bracketsMatcher = /\{\{(.*)\}\}/g
+    const bracketsMatcher = /\{\{(.*?)\}\}/g
 
     let result, lastEnd = 0
     while (result = bracketsMatcher.exec(templateString)) {
         const [_, varName] = result
         const i = result.index
-        
+
         frags.push(
             templateString.slice(lastEnd, i).replaceAll('\\{', '{')
         )
 
         lastEnd = i + _.length
-
-        if (varName in templateVarsMapping) {
-            args.push(templateVarsMapping[varName])
-        }
+        args.push(templateVarsMapping[varName] ?? null)
     }
 
     frags.push(templateString.slice(lastEnd))
-    
-    return template(frags, ...args)
+
+    return template(templateOpt.tagName, templateOpt.opts)(frags, ...args)
 }
 
 export function relative(importMeta, url) {
@@ -57,9 +60,10 @@ export function relative(importMeta, url) {
 }
 
 /**
- * @type {(frags: string[], ...args: ant[]) => MviTemplate}
+ * @param {string} tagName 
+ * @param {ElementDefinitionOptions} [opts] 
  */
-export const template = (frags, ...args) => {
+export const template = (tagName, opts) => (frags, ...args) => {
     const temp = new MviTemplate()
     const result = []
 
@@ -79,6 +83,7 @@ export const template = (frags, ...args) => {
     result.push(...frags.slice(-1))
 
     temp.setTemplateFrags(result)
+    temp.defineElement(tagName, opts)
 
     return temp
 }
@@ -92,47 +97,54 @@ function isAttribute(str) {
 }
 
 
-class MvvmElement extends HTMLElement {
-    /**@private @type {MviTemplate}*/ _template = null
+class MviElement extends HTMLElement {
+    /**@private @type {MviTemplate}*/ _temp = null
 
     constructor(temp) {
         super()
 
-        this._template = temp
+        this._temp = temp
+        temp._element = this
     }
 
     useShadowRoot() {
-        return this.attachShadow({
+        this.attachShadow({
             mode: 'open'
         })
     }
 
+    getEntry = () => {
+        return this.shadowRoot ?? this
+    }
+
+    /**@private*/ _callLifeCycle = (name, args) => {
+        this._temp.callLifecycleCallback(name, this, args)
+    }
+
     connectedCallback() {
-        const template = this._template
-        template.callLifecycleCallback('connected', this)
-        template._handleAttrs(this.shadowRoot ?? this)
-        template.callLifecycleCallback('initialized', this)
+        this._callLifeCycle('connected')
+        this._temp.build()
+        this._callLifeCycle('initialized')
     }
 
     disconnectedCallback() {
-        this._template.callLifecycleCallback('disconnected', this)
+        this._callLifeCycle('disconnected')
     }
 
     adoptedCallback() {
-        this._template.callLifecycleCallback('adopted', this)
+        this._callLifeCycle('adopted')
     }
 
     attributeChangedCallback(...args) {
-        this._template.callLifecycleCallback('attributeChanged', this, args)
+        this._callLifeCycle('attributeChanged', args)
     }
 
 }
 
-customElements.define('mvvm-element', MvvmElement)
-
 class Accessor {
     static reachableProps = [
-        '_isReactive', 'value'
+        '_isReactive', 'value', 'watch',
+        'subscribe',
     ]
 
     static editableProps = [
@@ -141,15 +153,21 @@ class Accessor {
 
     static values = new Map()
 
-    static addSubmit(accessor, onChange) {
-        this.values.set(accessor, onChange)
+    /**
+     * @param {(v: any) => void} listener 
+     */
+    subscribe = listener => {
+        let listeners = this.getSubscribes()
+        if (!listeners) {
+            Accessor.values.set(this, listeners = [])
+        }
+
+        listeners.push(listener)
     }
 
-    static getSubmit(accessor) {
-        return this.values.get(accessor)
+    getSubscribes = () => {
+        return Accessor.values.get(this)
     }
-
-
 
     /**@private*/ _isReactive = {}
 
@@ -165,7 +183,7 @@ class Accessor {
     }
 
     buildProxy() {
-        return new Proxy(this, {
+        const _proxy = new Proxy(this, {
             get(t, p) {
                 if (!Accessor.reachableProps.includes(p)) {
                     return null
@@ -179,20 +197,26 @@ class Accessor {
                     return false
                 }
 
-                const onChange = Accessor.getSubmit(r)
-                if (!onChange) {
-                    t[p] = v
+                t[p] = v
+                const listeners = t.getSubscribes(r)
+                if (!listeners.length) {
                     return true
                 }
 
-                t.setter(
-                    val => onChange.call(null, val),
-                    t[p] = v
-                )
+                for (const listener of listeners) {
+                    t.setter(
+                        val => listener.call(null, val),
+                        v
+                    )
+                }
 
                 return true
             }
         })
+
+        this._proxy = _proxy
+
+        return _proxy
     }
 }
 
@@ -205,7 +229,7 @@ export function val(value, getter, setter) {
     return new Accessor(value, getter, setter).buildProxy()
 }
 
-class EventStream extends Array {
+export class EventStream extends Array {
     event(type) {
         return this.filter(ev => ev.type === type)
     }
@@ -215,44 +239,114 @@ class EventStream extends Array {
             handler.call(null)
         }
     }
+
+    target(eventTarget) {
+        return this.filter(ev => ev.target === eventTarget)
+    }
+
+    select(selectors) {
+        return this.filter(ev => ev.target.matches(selectors))
+    }
+
+    fold(reducer, initVal) {
+        let val = initVal
+        let index = 0
+        for (const element of this) {
+            val = reducer.call(this, val, element, index++)
+        }
+
+        return EventStream.from([val])
+    }
+
+    sink(accessor) {
+        accessor.value = this[this.length - 1]
+    }
+
+    /**
+     * @param  {...EventStream} streams 
+     * @returns 
+     */
+    static merge(...streams) {
+        return streams.reduce((p, v) => p.concat(v), new EventStream())
+    }
 }
 
 class DOMDriver {
 
-    /**@private*/ _scheduler = func => {
+    static defaultScheduler = (driver, func) => {
         let animFrame
         let looper = () => {
-            const queue = this._evQueue
+            const queue = driver._evQueue
             const arr = queue.splice(0, queue.length)
 
             if (arr.length) {
                 func.call(
-                    this,
+                    driver,
                     EventStream.from(arr)
                 )
             }
 
-            animFrame = requestAnimationFrame(looper)
+            animFrame = requestIdleCallback(looper)
         }
-    
+
         return {
-            start: () => looper(),
-            stop: () => cancelAnimationFrame(animFrame),
+            get running() {
+                return !!animFrame
+            },
+            run: () => looper(),
+            stop: () => cancelIdleCallback(animFrame),
         }
     }
 
     /**@private*/ _evQueue = []
+    /**@private @type {ReturnType<DOMDriverScheduler>}*/ _scheduler = null
+    /**@private*/ _forwardTo = null
 
-    sendData(val) {
-        this._evQueue.push(val)
+    send = val => {
+        if (!this._forwardTo) {
+            this._evQueue.push(val)
+            return
+        }
+
+        this._forwardTo.send(val)
     }
 
     /**
      * @param {DOMDriverMain} main 
+     * @param {(driver: DOMDriver, func: Function) => {run: Function, stop: Function}} [scheduler]
      */
-    constructor(main) {
-        this._scheduler(main).start()
+    constructor(main, scheduler = DOMDriver.defaultScheduler) {
+        if (main) {
+            this._scheduler = scheduler(this, main)
+        }
     }
+
+    run() {
+        if (
+            !this._forwardTo && this._scheduler && !this._scheduler.running
+        ) {
+            this._scheduler.run()
+        }
+    }
+
+    disable() {
+        if (this._scheduler && this._scheduler.running) {
+            this._scheduler.stop()
+        }
+    }
+
+    /**
+     * @param {DOMDriver} driver 
+     */
+    forward(driver) {
+        if (driver) {
+            this._forwardTo = driver
+            return
+        }
+
+        return this._forwardTo
+    }
+
 }
 
 /**
@@ -300,14 +394,16 @@ class MviTemplate {
         },
     }
 
-    /**@private @type {MvvmElement}*/ _element = new MvvmElement(this)
+    /**@private*/ _isMviTemplate = {}
 
+    /**@private @type {MviElement}*/ _element = null
     /**@private*/ _contents = {}
     /**@private*/ _attrs = {}
     /**@private*/ _initialized = false
     /**@private*/ _lifecycleCallbacks = {}
     /**@private*/ _rawHtml = ''
-    /**@private*/ _shadowElement = false
+    /**@private*/ _exportAttrs = {}
+    /**@private*/ _meta = {}
 
     setTemplateFrags(html) {
         if (this._initialized) throw 'Initialized template.'
@@ -317,14 +413,14 @@ class MviTemplate {
     }
 
     recordReactiveContent(arg) {
-        const uid = `uid-${MviTemplate.uid++}`
+        const uid = `{{uid-${MviTemplate.uid++}}}`
         this._contents[uid] = arg
 
         return uid
     }
 
     recordReactiveAttr(arg) {
-        const uid = `uid-${MviTemplate.uid++}`
+        const uid = `{{uid-${MviTemplate.uid++}}}`
         this._attrs[uid] = arg
 
         return uid
@@ -348,48 +444,87 @@ class MviTemplate {
         }
     }
 
-    /**@private*/ _handleContent(shadowRoot = false) {
+    /**@private*/ _handleDOM(shadowRoot = false) {
         let target = this._element
 
         if (shadowRoot) {
             target = this._element.useShadowRoot()
-            this._shadowElement = true
         }
 
         target.innerHTML = this._rawHtml
 
-        this._handleInnerTexts(target)
+        this._handleChildNodes(target)
     }
 
     /**
      * @private
      * @param {HTMLElement | ShadowRoot} target 
      */
-    _handleInnerTexts(target) {
+    _handleChildNodes(target) {
         target.childNodes.forEach(node => {
             if (node.nodeType === Node.ELEMENT_NODE) {
-                return this._handleInnerTexts(node)
+                return this._handleElementChild(node)
             }
 
             if (node.nodeType === Node.TEXT_NODE) {
-                if (node.nodeValue in this._contents) {
-                    this._handleTextNode(node, this._contents[node.nodeValue])
-                }
+                this._handleTextNode(node)
             }
         })
     }
 
     /**
      * @private
+     * @param {HTMLElement} target 
      */
-    _handleTextNode(node, val) {
-        if (val._isReactive) {
-            node.nodeValue = val.value
-            Accessor.addSubmit(val, t => node.nodeValue = t)
+    _handleElementChild(target) {
+        this._handleChildNodes(target)
+    }
+
+    /**@private*/ _bracketMatcher = /\{\{.*?\}\}/g
+
+    /**
+     * @private
+     * @param {Node} node
+     */
+    _handleTextNode(node) {
+        const nodeVal = node.nodeValue
+        if (!nodeVal.trim().length) {
             return
         }
 
-        node.nodeValue = val.value.toString()
+        if (!nodeVal.match(this._bracketMatcher)) {
+            return
+        }
+
+        let result, lastEnd = 0
+        const textContents = document.createDocumentFragment()
+
+        while (result = this._bracketMatcher.exec(nodeVal)) {
+            const [key] = result
+            const i = result.index
+            const val = this._contents[key] ?? ''
+
+            textContents.appendChild(document.createTextNode(nodeVal.slice(lastEnd, i)))
+            lastEnd = i + key.length
+
+            if (val._isReactive) {
+                const node = document.createTextNode(val.value)
+                textContents.appendChild(node)
+                val.subscribe(t => node.nodeValue = t)
+            }
+
+            if (val._isMviTemplate) {
+                textContents.appendChild(val.build())
+            }
+
+            node.parentNode.replaceChild(textContents, node)
+        }
+
+        const lastTextVal = nodeVal.slice(lastEnd)
+        if (lastTextVal) {
+            textContents.appendChild(document.createTextNode(lastTextVal))
+        }
+
     }
 
     /**
@@ -415,26 +550,32 @@ class MviTemplate {
         const attrName = attr.name
         const attrKey = attr.value
         const attrVal = this._attrs[attrKey]
+        const rmAttribute = () => target.removeAttribute(attr.name)
+
+        if (!attrVal) {
+            return
+        }
 
         //绑定事件
         if (attrName.startsWith('@')) {
             const [eventName, ...modifiers] = attrName.slice(1).split('|')
             this._bindEvent(target, eventName, attrVal, modifiers)
-            return
+            return rmAttribute()
         }
 
         //事件流数据源点
         if (attrName.startsWith('$')) {
             const events = attrName.slice(1).split('|')
             for (const ev of events) {
-                target.addEventListener(ev, e => attrVal.sendData(e))
+                target.addEventListener(ev, e => attrVal.send(e))
             }
+            return rmAttribute()
         }
 
         //将 this="${ele}" 绑定到 ele
         if (attrName === 'this' && attrVal._isReactive) {
             attrVal.value = target
-            return
+            return rmAttribute()
         }
     }
 
@@ -459,11 +600,85 @@ class MviTemplate {
 
     /**
      * @param {Node} target 
-     * @param {MountOptions} opt 
+     * @param {BuildOptions} opt 
      */
-    mount(target, opt = {}) {
-        this._handleContent(opt.shadow)
+    mount(target) {
+        this.build()
         target.appendChild(this._element)
     }
 
+    build() {
+        const { shadow } = this._meta
+        this._handleDOM(shadow)
+        this._handleAttrs(this._element.getEntry())
+
+        return this._element
+    }
+
+    /**
+     * @param {{[P: string]: (v: any) => void}} attrs 
+     * @returns 
+     */
+    defineAttributes(attrs) {
+        this._exportAttrs = Object.assign(this._exportAttrs, attrs)
+        return
+    }
+
+    /**
+     * @param {{[P: string]: any}} attrs 
+     * @returns 
+     */
+    setAttributes(attrs) {
+        const exposedAttrs = this._exportAttrs
+        for (const k in attrs) {
+            if (typeof exposedAttrs[k] === 'function') {
+                exposedAttrs[k].call(this._element, attrs[k])
+            }
+        }
+    }
+
+    /**
+     * @param {TemplateMeta} v 
+     */
+    meta(v) {
+        Object.assign(this._meta, v)
+    }
+
+    /**
+     * @param {string} tagName 
+     * @param {ElementDefinitionOptions} [opts] 
+     */
+    defineElement = (tagName, opts) => {
+        const self = this
+
+        const cls = class extends MviElement {
+            constructor() {
+                super(self)
+            }
+        }
+
+        this._meta.tagName = tagName
+        this._meta.cls = cls
+        customElements.define(tagName, cls, opts)
+    }
+
+    /**@private*/ _exposed = new Map()
+
+    /**
+     * @param {{[P: string]: any}} obj 
+     */
+    export(obj) {
+        for (const [k, v] of Object.entries(obj)) {
+            this._exposed.set(k, v)
+        }
+
+        return this
+    }
+
+    /**
+     * @param {string} k 
+     */
+    import(k) {
+        return this._exposed.get(k)
+    }
 }
