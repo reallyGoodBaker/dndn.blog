@@ -4,4 +4,4 @@ window.addEventListener('load', async () => {
     bindAllCGs()
 })
 
-import '../src/card/index.js'
+import '../src/test.js'

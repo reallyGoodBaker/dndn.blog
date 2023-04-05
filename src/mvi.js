@@ -6,7 +6,7 @@
  * @param {{[P: string]: any}} templateVarsMapping 
  * @returns 
  */
-export async function importTemplate(url, templateOpt = {}, templateVarsMapping = {}) {
+export async function importTemplate(url, templateVarsMapping = {}) {
     const templateString = await (await fetch(url)).text()
     const frags = []
     const args = []
@@ -27,7 +27,7 @@ export async function importTemplate(url, templateOpt = {}, templateVarsMapping 
 
     frags.push(templateString.slice(lastEnd))
 
-    return template(templateOpt.tagName, templateOpt.opts)(frags, ...args)
+    return template(frags, ...args)
 }
 
 export function relative(importMeta, url) {
@@ -63,7 +63,7 @@ export function relative(importMeta, url) {
  * @param {string} tagName 
  * @param {ElementDefinitionOptions} [opts] 
  */
-export const template = (tagName, opts) => (frags, ...args) => {
+export const template = (frags, ...args) => {
     const temp = new MviTemplate()
     const result = []
 
@@ -81,9 +81,7 @@ export const template = (tagName, opts) => (frags, ...args) => {
     })
 
     result.push(...frags.slice(-1))
-
     temp.setTemplateFrags(result)
-    temp.defineElement(tagName, opts)
 
     return temp
 }
@@ -96,49 +94,80 @@ function isAttribute(str) {
     return str.split('<').length - str.split('>').length
 }
 
+function getCls(el) {
+    return Object.getPrototypeOf(el).constructor
+}
 
-class MviElement extends HTMLElement {
-    /**@private @type {MviTemplate}*/ _temp = null
+export class MviElement extends HTMLElement {
+    /**@private*/ _subscribers = []
+    /**@private*/ _driver = driver()
+    state = {}
 
-    constructor(temp) {
-        super()
+    static observedAttributes = []
 
-        this._temp = temp
-        temp._element = this
+    /**
+     * @param {DOMDriver} driver 
+     */
+    forward(driver) {
+        this._driver.forward(driver)
     }
 
-    useShadowRoot() {
-        this.attachShadow({
-            mode: 'open'
-        })
+    subscribe(func) {
+        this._subscribers.push(func)
     }
 
-    getEntry = () => {
-        return this.shadowRoot ?? this
+    submit(v) {
+        this._subscribers.forEach(f => f.call(this, Object.assign(this.state, v)))
     }
 
-    /**@private*/ _callLifeCycle = (name, args) => {
-        this._temp.callLifecycleCallback(name, this, args)
-    }
+    connected = Function.prototype
+    disconnected = Function.prototype
+    adopted = Function.prototype
+    attributeChanged = Function.prototype
+    initialized = Function.prototype
 
     connectedCallback() {
-        this._callLifeCycle('connected')
-        this._temp.build()
-        this._callLifeCycle('initialized')
+        this.connected()
+        let state = {}
+        const self = this
+        getCls(this).observedAttributes.forEach(n => {
+            const data = this.getAttribute(n)
+            if (data) {
+                state[n] = data
+            }
+
+            if (!this[n]) {
+                Object.defineProperty(this, n, {
+                    get() {
+                        return self.getAttribute(n)
+                    },
+
+                    set(v) {
+                        self.setAttribute(n, v)
+                    }
+                })
+            }
+        })
+
+        this.submit(state)
+        this.initialized()
     }
 
-    disconnectedCallback() {
-        this._callLifeCycle('disconnected')
+    attributeChangedCallback(name, oldVal, newVal) {
+        if (oldVal !== newVal) {
+            this.submit(Object.assign({ [name]: newVal }))
+        }
+
+        this.attributeChanged(name, oldVal, newVal)
     }
 
     adoptedCallback() {
-        this._callLifeCycle('adopted')
+        this.adopted()
     }
 
-    attributeChangedCallback(...args) {
-        this._callLifeCycle('attributeChanged', args)
+    disconnectedCallback() {
+        this.disconnected()
     }
-
 }
 
 class Accessor {
@@ -258,8 +287,8 @@ export class EventStream extends Array {
         return EventStream.from([val])
     }
 
-    sink(accessor) {
-        accessor.value = this[this.length - 1]
+    sink(publisher) {
+        publisher.submit(this[this.length - 1])
     }
 
     /**
@@ -394,22 +423,17 @@ class MviTemplate {
         },
     }
 
-    /**@private*/ _isMviTemplate = {}
-
-    /**@private @type {MviElement}*/ _element = null
     /**@private*/ _contents = {}
     /**@private*/ _attrs = {}
     /**@private*/ _initialized = false
-    /**@private*/ _lifecycleCallbacks = {}
-    /**@private*/ _rawHtml = ''
-    /**@private*/ _exportAttrs = {}
-    /**@private*/ _meta = {}
+    /**@private*/ _tempFrags = null
+    /**@private*/ _tempChildNodes = document.createDocumentFragment()
 
     setTemplateFrags(html) {
         if (this._initialized) throw 'Initialized template.'
 
         this._initialized = true
-        this._rawHtml = html.join('')
+        this._tempFrags = html
     }
 
     recordReactiveContent(arg) {
@@ -426,48 +450,28 @@ class MviTemplate {
         return uid
     }
 
-    /**
-     * @param {TemplateLifecycleCallbacks} lifecycleCallbacks 
-     */
-    setCallbacks(lifecycleCallbacks = {}) {
-        this._lifecycleCallbacks = lifecycleCallbacks
-    }
-
-    /**
-     * @param {keyof TemplateLifecycleCallbacks} lifecycle 
-     * @param {any[] | []} args 
-     */
-    callLifecycleCallback(lifecycle, target, args) {
-        const tag = lifecycle
-        if (typeof this._lifecycleCallbacks[tag] === 'function') {
-            this._lifecycleCallbacks[tag].apply(target, args)
-        }
-    }
-
-    /**@private*/ _handleDOM(shadowRoot = false) {
-        let target = this._element
-
-        if (shadowRoot) {
-            target = this._element.useShadowRoot()
+    /**@private @param {HTMLElement} target*/ _handleDOM(target) {
+        for (const n of target.children) {
+            this._tempChildNodes.appendChild(n)
         }
 
-        target.innerHTML = this._rawHtml
-
-        this._handleChildNodes(target)
+        target.innerHTML = this._tempFrags.join('')
+        this._handleChildNodes(target, target)
+        target.appendChild(this._tempChildNodes)
     }
 
     /**
      * @private
      * @param {HTMLElement | ShadowRoot} target 
      */
-    _handleChildNodes(target) {
+    _handleChildNodes(target, root) {
         target.childNodes.forEach(node => {
             if (node.nodeType === Node.ELEMENT_NODE) {
-                return this._handleElementChild(node)
+                return this._handleElementChild(node, root)
             }
 
             if (node.nodeType === Node.TEXT_NODE) {
-                this._handleTextNode(node)
+                this._handleTextNode(node, root)
             }
         })
     }
@@ -476,8 +480,8 @@ class MviTemplate {
      * @private
      * @param {HTMLElement} target 
      */
-    _handleElementChild(target) {
-        this._handleChildNodes(target)
+    _handleElementChild(target, root) {
+        this._handleChildNodes(target, root)
     }
 
     /**@private*/ _bracketMatcher = /\{\{.*?\}\}/g
@@ -486,7 +490,7 @@ class MviTemplate {
      * @private
      * @param {Node} node
      */
-    _handleTextNode(node) {
+    _handleTextNode(node, ctx) {
         const nodeVal = node.nodeValue
         if (!nodeVal.trim().length) {
             return
@@ -502,22 +506,23 @@ class MviTemplate {
         while (result = this._bracketMatcher.exec(nodeVal)) {
             const [key] = result
             const i = result.index
-            const val = this._contents[key] ?? ''
+            const val = this._contents[key]
 
             textContents.appendChild(document.createTextNode(nodeVal.slice(lastEnd, i)))
             lastEnd = i + key.length
 
-            if (val._isReactive) {
+            if (typeof val === 'function') {
                 const node = document.createTextNode(val.value)
                 textContents.appendChild(node)
-                val.subscribe(t => node.nodeValue = t)
+                ctx.subscribe(t => {
+                    const oldVal = node.nodeValue
+                    const newVal = val.call(null, t)
+                    if (newVal !== oldVal) {
+                        node.nodeValue = newVal
+                    }
+                })
             }
 
-            if (val._isMviTemplate) {
-                textContents.appendChild(val.build())
-            }
-
-            node.parentNode.replaceChild(textContents, node)
         }
 
         const lastTextVal = nodeVal.slice(lastEnd)
@@ -525,19 +530,20 @@ class MviTemplate {
             textContents.appendChild(document.createTextNode(lastTextVal))
         }
 
+        node.parentNode.replaceChild(textContents, node)
     }
 
     /**
      * @private
      * @param {HTMLElement} target 
      */
-    _handleAttrs(target) {
+    _handleAttrs(target, root) {
         for (const attr of target.attributes ?? []) {
-            this._handleAttribute(target, attr)
+            this._handleAttribute(target, attr, root)
         }
 
         for (const child of target.children) {
-            this._handleAttrs(child)
+            this._handleAttrs(child, root)
         }
     }
 
@@ -546,29 +552,28 @@ class MviTemplate {
      * @param {HTMLElement} target 
      * @param {Attr} attr 
      */
-    _handleAttribute(target, attr) {
+    _handleAttribute(target, attr, root) {
         const attrName = attr.name
         const attrKey = attr.value
         const attrVal = this._attrs[attrKey]
         const rmAttribute = () => target.removeAttribute(attr.name)
 
-        if (!attrVal) {
-            return
+
+        //事件流数据源点
+        if (attrName.startsWith('$')) {
+            const driver = root._driver
+            const events = attrName.slice(1).split('|')
+            for (const ev of events) {
+                target.addEventListener(ev, e => driver.send(e))
+            }
+            return rmAttribute()
         }
 
         //绑定事件
         if (attrName.startsWith('@')) {
+            return rmAttribute()
             const [eventName, ...modifiers] = attrName.slice(1).split('|')
             this._bindEvent(target, eventName, attrVal, modifiers)
-            return rmAttribute()
-        }
-
-        //事件流数据源点
-        if (attrName.startsWith('$')) {
-            const events = attrName.slice(1).split('|')
-            for (const ev of events) {
-                target.addEventListener(ev, e => attrVal.send(e))
-            }
             return rmAttribute()
         }
 
@@ -598,87 +603,31 @@ class MviTemplate {
         target.addEventListener(name, _l)
     }
 
-    /**
-     * @param {Node} target 
-     * @param {BuildOptions} opt 
-     */
-    mount(target) {
-        this.build()
-        target.appendChild(this._element)
+    build(el) {
+        this._handleDOM(el)
+        this._handleAttrs(el, el)
     }
 
-    build() {
-        const { shadow } = this._meta
-        this._handleDOM(shadow)
-        this._handleAttrs(this._element.getEntry())
+}
 
-        return this._element
-    }
-
-    /**
-     * @param {{[P: string]: (v: any) => void}} attrs 
-     * @returns 
-     */
-    defineAttributes(attrs) {
-        this._exportAttrs = Object.assign(this._exportAttrs, attrs)
-        return
-    }
-
-    /**
-     * @param {{[P: string]: any}} attrs 
-     * @returns 
-     */
-    setAttributes(attrs) {
-        const exposedAttrs = this._exportAttrs
-        for (const k in attrs) {
-            if (typeof exposedAttrs[k] === 'function') {
-                exposedAttrs[k].call(this._element, attrs[k])
+/**
+ * @param {string} tagName 
+ * @param {MviTemplate|MviElement} template 
+ * @param {MviElement} cls 
+ */
+export function defineElement(tagName, template, cls) {
+    if (cls) {
+        customElements.define(tagName, class extends cls {
+            connectedCallback() {
+                template.build(this)
+                super.connectedCallback && super.connectedCallback()
             }
-        }
+        })
+
+        cls.tagName = tagName
+        return 
     }
 
-    /**
-     * @param {TemplateMeta} v 
-     */
-    meta(v) {
-        Object.assign(this._meta, v)
-    }
-
-    /**
-     * @param {string} tagName 
-     * @param {ElementDefinitionOptions} [opts] 
-     */
-    defineElement = (tagName, opts) => {
-        const self = this
-
-        const cls = class extends MviElement {
-            constructor() {
-                super(self)
-            }
-        }
-
-        this._meta.tagName = tagName
-        this._meta.cls = cls
-        customElements.define(tagName, cls, opts)
-    }
-
-    /**@private*/ _exposed = new Map()
-
-    /**
-     * @param {{[P: string]: any}} obj 
-     */
-    export(obj) {
-        for (const [k, v] of Object.entries(obj)) {
-            this._exposed.set(k, v)
-        }
-
-        return this
-    }
-
-    /**
-     * @param {string} k 
-     */
-    import(k) {
-        return this._exposed.get(k)
-    }
+    template.tagName = tagName
+    customElements.define(tagName, template)
 }

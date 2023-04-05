@@ -1,0 +1,20 @@
+<div class="content">
+    <div class="header">
+        <div class="avatar" style="--src: url(./asset/porno.png)"></div>
+        <div class="title">
+            <div class="subtitle">{{subtitle}}</div>
+            <div>{{title}}</div>
+        </div>
+    </div>
+    <div class="article">
+        <slot name="content"></slot>
+    </div>
+    <div class="footer">
+        <div>{{footer}}</div>
+        <div class="btn_group">
+            <div $pointerdown class="txt_btn">回应</div>
+            <div $pointerdown class="txt_btn">编辑</div>
+            <div $pointerdown class="txt_btn">删除</div>
+        </div>
+    </div>
+</div>
