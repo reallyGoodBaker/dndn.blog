@@ -1,20 +1,23 @@
+<style>
+    @import url('../../style.css');
+</style>
 <div class="content">
     <div class="header">
-        <div class="avatar" style="--src: url(./asset/porno.png)"></div>
+        <div class="avatar" style="--src: url({{avatar}})"></div>
         <div class="title">
             <div class="subtitle">{{subtitle}}</div>
             <div>{{title}}</div>
         </div>
     </div>
     <div class="article">
-        <slot name="content"></slot>
+        <slot name="content" &container></slot>
     </div>
     <div class="footer">
         <div>{{footer}}</div>
         <div class="btn_group">
-            <div $pointerdown class="txt_btn">回应</div>
-            <div $pointerdown class="txt_btn">编辑</div>
-            <div $pointerdown class="txt_btn">删除</div>
+            <div @click="{{reply}}" class="txt_btn">回应</div>
+            <div @click="{{edit}}" class="txt_btn">编辑</div>
+            <div @click="{{delete}}" class="txt_btn">删除</div>
         </div>
     </div>
 </div>

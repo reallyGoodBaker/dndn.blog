@@ -82,7 +82,7 @@ body {
 }
 
 .nav > .avatar {
-    background: center / cover no-repeat url(./asset/kirakira_avatar.png), #fefc51;
+    background: center / cover no-repeat url('http://q1.qlogo.cn/g?b=qq&nk=2433479855&s=5'), #fefc51;
     box-shadow: 4px 4px 0 #38e0ff;
     width: 88px;
     height: 88px;
@@ -199,4 +199,18 @@ body {
 
 .content:hover .cg {
     --dx: -24px;
+}
+
+::-webkit-scrollbar {
+    width: 12px;
+}
+::-webkit-scrollbar-track {
+    background-color: #222;
+}
+::-webkit-scrollbar-thumb {
+    border: solid 2px #222;
+    background-color: rgb(255, 235, 120);
+}
+::-webkit-scrollbar-thumb:active {
+    background-color: #38e0ff;
 }

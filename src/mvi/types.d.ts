@@ -30,7 +30,6 @@ interface Accessor {
 }
 
 interface EventStream extends Array<unknown>{
-    static merge(...streams: EventStream[]): EventStream
     event(type: string): this
     notEmpty(handler: () => void): void
     target(evTarget: EventTarget): this
@@ -39,22 +38,38 @@ interface EventStream extends Array<unknown>{
     sink(out: Accessor): void
 }
 
-interface DOMDriverMain {
+interface EventStreamConstructor {
+    merge(...streams: EventStream[]): EventStream
+    new(): EventStream
+}
+
+declare var EventStream: EventStreamConstructor
+
+interface DriverMain {
     (evs: EventStream): void
 }
 
-interface DOMDriver {
-    static defaultScheduler: DOMDriverScheduler
+interface Driver extends Forwardable {
     send(v: any): void
     start(): void
     disable(): void
-    forward(driver: DOMDriver): void
 }
 
-interface DOMDriverScheduler {
-    (driver: DOMDriver, func: DOMDriverMain): {
+interface DriverConstructor {
+    defaultScheduler: DriverScheduler
+    new(): Driver
+}
+
+declare var Driver: DriverConstructor
+
+interface DriverScheduler {
+    (driver: Driver, func: DriverMain): {
         run(): void
         stop(): void
-        running: booleam
+        running: boolean
     }
+}
+
+interface Forwardable {
+    forward(forwardable: Forwardable): void
 }

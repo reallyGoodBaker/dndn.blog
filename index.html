@@ -7,6 +7,12 @@
     <link rel="stylesheet" href="asset/icons/index.css">
     <link rel="stylesheet" href="style.css">
     <title>blog</title>
+    <script src="https://cdn.jsdelivr.net/npm/marked/lib/marked.umd.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked-highlight/lib/index.umd.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.8.0/build/styles/atom-one-dark.min.css">
+    <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.8.0/build/highlight.min.js"></script>
+
+    <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.8.0/build/languages/javascript.min.js"></script>
 </head>
 <body>
     <div class="nav">
@@ -74,7 +80,7 @@
             </div>
         </div>
     
-        <div class="content">
+        <!-- <div class="content">
             <div class="header">
                 <div class="avatar" style="--src: url(./asset/antena.png)"></div>
                 <div class="title">
@@ -94,9 +100,9 @@
                     <div class="txt_btn">删除</div>
                 </div>
             </div>
-        </div>
+        </div> -->
     
-        <div class="content">
+        <!-- <div class="content">
             <div class="header">
                 <div class="avatar" style="--src: url(./asset/porno.png)"></div>
                 <div class="title">
@@ -116,15 +122,22 @@
                     <div class="txt_btn">删除</div>
                 </div>
             </div>
-        </div>
+        </div> -->
 
         <my-article
-            title="标题"
+            title="Card1"
+            avatar="./asset/porno.png"
             subtitle="副标题">
-            <h3 slot="content">Wow</h3>
+            
+        </my-article>
+
+        <my-article
+            title="Card2"
+            subtitle="副标题">
+            <div slot="content">greet.md</div>
         </my-article>
     </div>
 
-    <script src="./js/init.js" type="module"></script>
+    <script src="./src/init.js" type="module"></script>
 </body>
 </html>
