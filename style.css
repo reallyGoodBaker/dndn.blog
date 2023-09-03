@@ -3,6 +3,9 @@ body {
     --main-dark: #d943b1;
     margin: 0;
     padding: 0;
+}
+
+.app {
     background-image: linear-gradient(
         45deg,
         var(--main-light) 0,
@@ -82,7 +85,7 @@ body {
 }
 
 .nav > .avatar {
-    background: center / cover no-repeat url('http://q1.qlogo.cn/g?b=qq&nk=2433479855&s=5'), #fefc51;
+    background: center / cover no-repeat url('http://q1.qlogo.cn/g?b=qq&nk=2433479855&s=640'), #fefc51;
     box-shadow: 4px 4px 0 #38e0ff;
     width: 88px;
     height: 88px;

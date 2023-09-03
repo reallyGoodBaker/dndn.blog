@@ -289,21 +289,26 @@ class MviTemplate {
     #getAttrVal(attrKey, el) {
         let matchResult
 
-        if (matchResult = this.#bracketMatcher.exec(attrKey)) {
-            const [ key ] = matchResult
-            const getter = this.#attrs[key]
-            el.subscribe(t => {
-                // const oldVal = node.nodeValue
-                // const newVal = getter.call(null, t)
-                // if (newVal !== oldVal) {
-                //     node.nodeValue = newVal
-                // }
-                // console.log(t)
-            })
-            return this.#attrs[key]
-        } else {
-            return this.#attrs[attrKey]
+        if ((matchResult = this.#bracketMatcher.exec(attrKey)) === null) {
+            return
         }
+
+        const [ key ] = matchResult
+        const getter = this.#attrs[key]
+
+        if (key.length === attrKey.length) {
+            return getter
+        }
+
+        el.subscribe(t => {
+            // const oldVal = node.nodeValue
+            // const newVal = getter.call(null, t)
+            // if (newVal !== oldVal) {
+            //     node.nodeValue = newVal
+            // }
+            // console.log(t)
+        })
+
     }
 
     /**
