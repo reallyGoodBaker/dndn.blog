@@ -46,7 +46,6 @@ export class MyArticle extends MviElement {
                     return this.renderAsMarkDown(element)
                 }
 
-
             }
         }
     }
@@ -54,7 +53,7 @@ export class MyArticle extends MviElement {
     async renderAsMarkDown(element) {
         const innerHtml = marked.parse(
             await (await fetch(
-                relative(import.meta, `../../asset/articles/${element.innerText}`)
+                relative(import.meta, `../../assets/articles/${element.innerText}`)
             )).text()
         )
 

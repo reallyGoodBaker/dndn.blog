@@ -108,7 +108,7 @@ body {
 }
 
 .header > .avatar {
-    --src: url(./asset/alyce.png);
+    --src: url(./assets/alyce.png);
     background-image: var(--src);
     background-size: cover;
     background-position: center;
